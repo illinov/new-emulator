@@ -3,7 +3,7 @@ pub (crate) struct CPU {
     pub status: u8, // Registro de 8 bits donde cada bit es una flag
     pub program_counter: u16, // 2 bytes para poder direccionar las 65535 direcciones de memoria
     pub register_x: u8, // Index Register X: Para loops o indices
-    pub register_y: u8,
+    pub register_y: u8, // Index Register Y: Similar a X pero con menos modos de direccionesnamiento
     memory: [u8; 0xFFFF], // Memoria del juego. von Neumann.  
 }
 
@@ -139,7 +139,7 @@ impl CPU {
                 // LDA (Load Accumulator): Carga un valor en el acumulador
                 0xA9 => { 
                     // Tomar el primer argumento
-                    let param = program[self.program_counter as usize];
+                    let param = self.memory[self.program_counter as usize];
                     self.program_counter += 1;
 
                     self.lda(param) // Guardar el parametro en el acumulador
@@ -190,8 +190,7 @@ mod test {
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
         let mut cpu = CPU::new();
-        cpu.register_a = 10;
-        cpu.load_and_run(vec![0xaa,0x00]);
+        cpu.load_and_run(vec![0xa9,0xa,0xaa,0x00]);
 
         assert_eq!(cpu.register_x, 10);
     }
@@ -207,8 +206,7 @@ mod test {
     #[test]
     fn test_inx_overflow() {
         let mut cpu = CPU::new();
-        cpu.register_x = 0xff;
-        cpu.load_and_run(vec![0xe8,0xe8,0x00]);
+        cpu.load_and_run(vec![0xa9,0xff,0xaa,0xe8,0xe8,0x00]);
 
         assert_eq!(cpu.register_x, 1);
     }
