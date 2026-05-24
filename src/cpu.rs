@@ -26,7 +26,8 @@ impl CPU {
     }
 
     fn inx(&mut self) {
-
+        self.register_x = self.register_x.wrapping_add(1);
+        self.update_zero_and_negative_flags(self.register_x);
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
@@ -64,6 +65,9 @@ impl CPU {
                 
                 // TAX: Transfer A to X
                 0xAA => self.tax(),
+
+                // INX: Increase X register + 1
+                0xe8 => self.inx(),
                 
                 // Break
                 0x00 => return,
@@ -113,7 +117,7 @@ mod test {
     #[test]
     fn test_5_ops_working_together() {
         let mut cpu = CPU::new();
-        cpu.interpret(vec![0xa9,0xc0,0xaa,0xe8]);
+        cpu.interpret(vec![0xa9,0xc0,0xaa,0xe8,0x00]);
 
         assert_eq!(cpu.register_x, 0xc1);
     }
