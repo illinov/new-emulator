@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use crate::opcodes;
+
 pub (crate) struct CPU {
     pub register_a: u8, // Acumulador: Para operaciones aritmeticas
     pub status: u8, // Registro de 8 bits donde cada bit es una flag
@@ -15,11 +18,11 @@ pub enum AddressingMode {
     ZeroPage_X,    // Igual que ZeroPage sumando X
     ZeroPage_Y,    // Igual pero sumando Y
     Absolute,      // Los 2 bytes de los 2 argumentos forman la direccion donde esta el valor
-    Absolute_X,     // Absolute sumando X
+    Absolute_X,    // Absolute sumando X
     Absolute_Y,    // Aboslute sumando Y
     Indirect_X,    // El primer byte + X tiene una direccion donde hay dos bytes que conforman otra direccion donde esta el valor
     Indirect_Y,    // El primer byte tiene una direccion de un byte a una direccion de dos bytes que conforman otra direccion, a esa se le suma Y y ahi esta el valor
-    NonAddressing, // No hay argumento
+    NoneAddressing, // No hay argumento
 }
 
 // Como cada direccion puede guardar un byte. Aqui se usa little endian, donde el byte menos significativo(la parte baja), se almacena primero.
@@ -131,7 +134,7 @@ impl CPU {
                 let deref = deref_base.wrapping_add(self.register_y as u16);
                 deref
             }
-            AddressingMode::NonAddressing => {
+            AddressingMode::NoneAddressing => {
                 panic!("Mode: {:?} is not supported.", mode);
             }
         }
@@ -162,9 +165,17 @@ impl CPU {
     }
 
     // ASM INSTRUCTIONS
-    fn lda(&mut self, value: u8) {
+    fn lda(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(&mode);
+        let value = self.mem_read(addr);
+
         self.register_a = value; // Guardar el parametro en el acumulador
         self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn sta(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_a);
     }
 
     fn tax(&mut self) {
@@ -194,30 +205,42 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
+        let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
         loop {
-            let opscode = self.mem_read(self.program_counter);
+            let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
+            let program_counter_state = self.program_counter;
 
-            match opscode {
+            let opcode = opcodes.get(&code).expect(&format!("OpCode {:x} is not recognized", code));
+
+            match code {
                 // LDA (Load Accumulator): Carga un valor en el acumulador
-                0xA9 => { 
-                    // Tomar el primer argumento
-                    let param = self.memory[self.program_counter as usize];
-                    self.program_counter += 1;
-
-                    self.lda(param) // Guardar el parametro en el acumulador
+                0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => {
+                    self.lda(&opcode.mode);
                 }
-                
+                // STA (Store Accumulator): Guarda el valor del acumulador en una direccion de memoria
+                0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
+                    self.sta(&opcode.mode);
+                }
                 // TAX: Transfer A to X
                 0xAA => self.tax(),
-
                 // INX: Increase X register + 1
                 0xe8 => self.inx(),
-                
                 // Break
                 0x00 => return,
-
                 _ => todo!()
+            }
+
+            // Si el PC no cambio durante la instruccion lo avanza segun el tamaño del OpCode
+            // es -1 porque ya hicimos +1 al leer el opcode
+            // Ejemplo:
+            // LDA Immediate (len = 2):
+            // lee opcode    → PC += 1  (de 0x8000 a 0x8001)
+            // ejecuta lda   → PC no cambia
+            // al final      → PC += (2-1) = 1  (de 0x8001 a 0x8002)
+            // Si el PC sí cambió durante la instruccion significa que la instrucción misma ya lo movió (como un salto o branch), entonces no lo toca
+            if program_counter_state == self.program_counter {
+                self.program_counter += (opcode.len - 1) as u16;
             }
         }
     }
@@ -272,5 +295,13 @@ mod test {
         cpu.load_and_run(vec![0xa9,0xff,0xaa,0xe8,0xe8,0x00]);
 
         assert_eq!(cpu.register_x, 1);
+    }
+
+    #[test]
+    fn test_lda_from_memory() {
+        let mut cpu = CPU::new();
+        cpu.mem_write(0x10,0x55);
+        cpu.load_and_run(vec![0xa5,0x10,0x00]);
+        assert_eq!(cpu.register_a, 0x55);
     }
 }
