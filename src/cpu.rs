@@ -7,6 +7,21 @@ pub (crate) struct CPU {
     memory: [u8; 0xFFFF], // Memoria del juego. von Neumann.  
 }
 
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+pub enum AddressingMode {
+    Immediate,     // El valor esta directamente en el primer byte de arugmento donde ya esta el PC
+    ZeroPage,      // El valor esta en la direccion del primer argumento, que es una direccion de las primeras 256 de 0x00 a 0xFF
+    ZeroPage_X,    // Igual que ZeroPage sumando X
+    ZeroPage_Y,    // Igual pero sumando Y
+    Absolute,      // Los 2 bytes de los 2 argumentos forman la direccion donde esta el valor
+    Absolute_X,     // Absolute sumando X
+    Absolute_Y,    // Aboslute sumando Y
+    Indirect_X,    // El primer byte + X tiene una direccion donde hay dos bytes que conforman otra direccion donde esta el valor
+    Indirect_Y,    // El primer byte tiene una direccion de un byte a una direccion de dos bytes que conforman otra direccion, a esa se le suma Y y ahi esta el valor
+    NonAddressing, // No hay argumento
+}
+
 // Como cada direccion puede guardar un byte. Aqui se usa little endian, donde el byte menos significativo(la parte baja), se almacena primero.
 // Si quisieramos por ejemplo leer la direccion de memoria del punto de entrada de la direccion 0xFFFC, 
 // Sabiendo que las direcciones de memoria ocupan 2 bytes. Suponiendo que la direccion que buscamos es: 0x1234
@@ -71,6 +86,54 @@ impl CPU {
             register_x: 0,
             register_y: 0,
             memory: [0; 0xFFFF],
+        }
+    }
+
+    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
+        match mode {
+            AddressingMode::Immediate => self.program_counter,
+            AddressingMode::ZeroPage => self.mem_read(self.program_counter) as u16,
+            AddressingMode::Absolute => self.mem_read_u16(self.program_counter),
+            AddressingMode::ZeroPage_X => {
+                let pos = self.mem_read(self.program_counter);
+                let addr = pos.wrapping_add(self.register_x) as u16;
+                addr
+            },
+            AddressingMode::ZeroPage_Y => {
+                let pos = self.mem_read(self.program_counter);
+                let addr = pos.wrapping_add(self.register_y) as u16;
+                addr
+            },
+            AddressingMode::Absolute_X => {
+                let base = self.mem_read_u16(self.program_counter);
+                let addr = base.wrapping_add(self.register_x as u16);
+                addr
+            },
+            AddressingMode::Absolute_Y => {
+                let base = self.mem_read_u16(self.program_counter);
+                let addr = base.wrapping_add(self.register_y as u16);
+                addr
+            },
+            AddressingMode::Indirect_X => {
+                let base = self.mem_read(self.program_counter);
+                let ptr: u8 = (base as u8).wrapping_add(self.register_x);
+                
+                let lo = self.mem_read(ptr as u16);
+                let hi = self.mem_read(ptr.wrapping_add(1) as u16);
+                (hi as u16) << 8 | (lo as u16) 
+            },
+            AddressingMode::Indirect_Y => {
+                let base = self.mem_read(self.program_counter);
+                let lo = self.mem_read(base as u16);
+                let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
+
+                let deref_base = (hi as u16) << 8 | (lo as u16);
+                let deref = deref_base.wrapping_add(self.register_y as u16);
+                deref
+            }
+            AddressingMode::NonAddressing => {
+                panic!("Mode: {:?} is not supported.", mode);
+            }
         }
     }
     
