@@ -13,15 +13,15 @@ pub (crate) struct CPU {
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
-    Immediate,     // El valor esta directamente en el primer byte de arugmento donde ya esta el PC
-    ZeroPage,      // El valor esta en la direccion del primer argumento, que es una direccion de las primeras 256 de 0x00 a 0xFF
-    ZeroPage_X,    // Igual que ZeroPage sumando X
-    ZeroPage_Y,    // Igual pero sumando Y
-    Absolute,      // Los 2 bytes de los 2 argumentos forman la direccion donde esta el valor
-    Absolute_X,    // Absolute sumando X
-    Absolute_Y,    // Aboslute sumando Y
-    Indirect_X,    // El primer byte + X tiene una direccion donde hay dos bytes que conforman otra direccion donde esta el valor
-    Indirect_Y,    // El primer byte tiene una direccion de un byte a una direccion de dos bytes que conforman otra direccion, a esa se le suma Y y ahi esta el valor
+    Immediate,      // El valor esta directamente en el primer byte de arugmento donde ya esta el PC
+    ZeroPage,       // El valor esta en la direccion del primer argumento, que es una direccion de las primeras 256 de 0x00 a 0xFF
+    ZeroPage_X,     // Igual que ZeroPage sumando X
+    ZeroPage_Y,     // Igual pero sumando Y
+    Absolute,       // Los 2 bytes de los 2 argumentos forman la direccion donde esta el valor
+    Absolute_X,     // Absolute sumando X
+    Absolute_Y,     // Aboslute sumando Y
+    Indirect_X,     // El primer byte + X tiene una direccion donde hay dos bytes que conforman otra direccion donde esta el valor
+    Indirect_Y,     // El primer byte tiene una direccion de un byte a una direccion de dos bytes que conforman otra direccion, a esa se le suma Y y ahi esta el valor
     NoneAddressing, // No hay argumento
 }
 
@@ -205,13 +205,14 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
-        let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
         loop {
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
             let program_counter_state = self.program_counter;
 
-            let opcode = opcodes.get(&code).expect(&format!("OpCode {:x} is not recognized", code));
+            let opcode = opcodes::OPCODES[code as usize]
+                .as_ref()
+                .expect(&format!("OpCode {:x} is not recognized", code));
 
             match code {
                 // LDA (Load Accumulator): Carga un valor en el acumulador
