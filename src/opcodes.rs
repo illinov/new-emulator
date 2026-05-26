@@ -10,6 +10,9 @@ pub (crate) struct OpCode {
     pub mode: AddressingMode,
 }
 
+/// Construye un array de 256 Option<OpCode> indexado directamente por el codigo del opcode.
+/// El codigo del opcode ES el indice — lookup O(1) sin HashMap ni busqueda.
+/// Las posiciones sin opcode valido quedan como None.
 macro_rules! opcode_table {
     ( $( $code:literal => $mn:literal, $len:literal, $cycles:literal, $mode:expr );* $(;)? ) => {{
         let mut table: [Option<OpCode>; 256] = [const { None }; 256];
@@ -26,6 +29,10 @@ macro_rules! opcode_table {
     }};
 }
 
+/// Tabla de opcodes del 6502.
+/// Se inicializa en runtime la primera vez que se accede (LazyLock).
+/// Compartida entre todas las instancias de la CPU — una sola copia en memoria.
+/// Lookup: OPCODES[code as usize]
 pub(crate) static OPCODES: LazyLock<[Option<OpCode>; 256]> = LazyLock::new(|| opcode_table![
     0x00 => "BRK", 1, 7, AddressingMode::NoneAddressing;
     0xaa => "TAX", 1, 2, AddressingMode::NoneAddressing;
